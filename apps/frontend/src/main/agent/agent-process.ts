@@ -7,6 +7,7 @@ import { AgentState } from './agent-state';
 import { AgentEvents } from './agent-events';
 import { ProcessType, ExecutionProgressData } from './types';
 import { detectRateLimit, createSDKRateLimitInfo, getProfileEnv, detectAuthFailure } from '../rate-limit-detector';
+import { getAPIProfileEnv } from '../services/profile-service';
 import { projectStore } from '../project-store';
 import { getClaudeProfileManager } from '../claude-profile-manager';
 import { parsePythonCommand, validatePythonPath } from '../python-detector';
@@ -276,22 +277,34 @@ export class AgentProcessManager {
     }
   }
 
-  spawnProcess(
+  /**
+   * Spawn a Python process for task execution
+   */
+  async spawnProcess(
     taskId: string,
     cwd: string,
     args: string[],
     extraEnv: Record<string, string> = {},
     processType: ProcessType = 'task-execution'
-  ): void {
+  ): Promise<void> {
     const isSpecRunner = processType === 'spec-creation';
     this.killProcess(taskId);
 
     const spawnId = this.state.generateSpawnId();
     const env = this.setupProcessEnvironment(extraEnv);
 
-    // Parse Python command to handle space-separated commands like "py -3"
+    // Get active API profile environment variables
+    const apiProfileEnv = await getAPIProfileEnv();
+
+        // Parse Python command to handle space-separated commands like "py -3"
     const [pythonCommand, pythonBaseArgs] = parsePythonCommand(this.getPythonPath());
-    const childProcess = spawn(pythonCommand, [...pythonBaseArgs, ...args], { cwd, env });
+    const childProcess = spawn(pythonCommand, [...pythonBaseArgs, ...args], {
+      cwd,
+      env: {
+        ...env,
+        ...apiProfileEnv // Include active API profile config (highest priority for ANTHROPIC_* vars)
+      }
+    });
 
     this.state.addProcess(taskId, {
       taskId,
