@@ -12,6 +12,7 @@ import { projectStore } from '../project-store';
 import { getClaudeProfileManager } from '../claude-profile-manager';
 import { parsePythonCommand, validatePythonPath } from '../python-detector';
 import { getConfiguredPythonPath } from '../python-env-manager';
+import { getOAuthModeClearVars } from './env-utils';
 
 /**
  * Process spawning and lifecycle management
@@ -294,14 +295,21 @@ export class AgentProcessManager {
     const env = this.setupProcessEnvironment(extraEnv);
 
     // Get active API profile environment variables
-    const apiProfileEnv = await getAPIProfileEnv();
+    let apiProfileEnv: Record<string, string> = {};
+    try {
+      apiProfileEnv = await getAPIProfileEnv();
+    } catch (error) {
+      console.error('[Agent Process] Failed to get API profile env:', error);
+      // Continue with empty profile env (falls back to OAuth mode)
+    }
 
-        // Parse Python command to handle space-separated commands like "py -3"
+    // Parse Python command to handle space-separated commands like "py -3"
     const [pythonCommand, pythonBaseArgs] = parsePythonCommand(this.getPythonPath());
     const childProcess = spawn(pythonCommand, [...pythonBaseArgs, ...args], {
       cwd,
       env: {
         ...env,
+        ...oauthModeClearVars, // Clear stale ANTHROPIC_* vars when in OAuth mode
         ...apiProfileEnv // Include active API profile config (highest priority for ANTHROPIC_* vars)
       }
     });
