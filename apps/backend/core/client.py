@@ -24,6 +24,7 @@ from claude_agent_sdk import ClaudeAgentOptions, ClaudeSDKClient
 from claude_agent_sdk.types import HookMatcher
 from core.auth import get_sdk_env_vars, require_auth_token
 from linear_updater import is_linear_enabled
+from phase_config import resolve_model_id
 from prompts_pkg.project_context import detect_project_capabilities, load_project_index
 from security import bash_security_hook
 
@@ -345,7 +346,7 @@ def create_client(
 
     # Build options dict, conditionally including output_format
     options_kwargs = {
-        "model": model,
+        "model": resolve_model_id(model),  # Resolve shorthand via API Profile if configured
         "system_prompt": (
             f"You are an expert full-stack developer building production-quality software. "
             f"Your working directory is: {project_dir.resolve()}\n"
